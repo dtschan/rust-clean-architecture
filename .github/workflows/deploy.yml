@@ -31,7 +31,7 @@ jobs:
           mkdir build
 
           sed -e "s~<head>~<head><base href=\"/rust-clean-architecture/\" />~g" index.html > build/index.html
-          mv {slides.md,css,dist,pitc-revealjs-theme,plugin} build
+          mv {slides.md,css,dist,pitc-revealjs-theme,plugin,images} build
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
