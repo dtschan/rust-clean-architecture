@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1155" height="1081">
+  <g fill="none" fill-rule="evenodd">
+    <path fill="#1E5A96" d="M0 0l540 540 .001-.001L1080.003 1080H.003l-.003.003V0z"/>
+    <path fill="#61B44B" d="M721.935 1080h360.13L902 899.935z"/>
+    <path fill="#46BCC0" d="M973.9674 1080h180.066l-90.033-90.033z"/>
+    <g fill="#FFF" font-family="Roboto-Regular, Roboto" font-size="50">
+      <text letter-spacing="-.015" transform="translate(113.125 808.9372)">
+        <tspan x="0" y="149">@</tspan> <tspan x="44.8825" y="149" letter-spacing="-.6853">g</tspan> <tspan x="72.2489" y="149" letter-spacing="-.2728">i</tspan> <tspan x="84.1099" y="149" letter-spacing="-.3038">t</tspan> <tspan x="100.1391" y="149" letter-spacing="-.6647">h</tspan> <tspan x="127.0135" y="149" letter-spacing="-.4688">u</tspan> <tspan x="154.1082" y="149" letter-spacing="-.84">b</tspan> <tspan x="181.32" y="149" letter-spacing="-1.0102">.</tspan> <tspan x="193.469" y="149">c</tspan> <tspan x="219.6259" y="149" letter-spacing="-.1594">o</tspan> <tspan x="247.9821" y="149">m</tspan> <tspan x="291.7904" y="149" letter-spacing="-1.8764">/</tspan> <tspan x="310.5195" y="149" letter-spacing="-.5152">p</tspan> <tspan x="338.0561" y="149" letter-spacing="-.773">u</tspan> <tspan x="364.8466" y="149" letter-spacing=".5573">z</tspan> <tspan x="390.1842" y="149" letter-spacing="-.5667">z</tspan> <tspan x="414.3977" y="149" letter-spacing="-.3398">l</tspan> <tspan x="426.1917" y="149">e</tspan>
+      </text>
+      <text letter-spacing=".2884" transform="translate(113.125 808.9372)">
+        <tspan x="0" y="46">@</tspan> <tspan x="45.1858" y="46" letter-spacing="-.2118">p</tspan> <tspan x="73.0258" y="46" letter-spacing="-.4696">u</tspan> <tspan x="100.1197" y="46" letter-spacing=".8607">z</tspan> <tspan x="125.7607" y="46" letter-spacing="-.2633">z</tspan> <tspan x="150.2776" y="46" letter-spacing="-.021">le</tspan> <tspan x="188.8587" y="46" letter-spacing=".0306">i</tspan> <tspan x="201.023" y="46" letter-spacing="-1.0987">t</tspan> <tspan x="216.2574" y="46" letter-spacing="-.021">c</tspan>
+      </text>
+    </g>
+  </g>
+</svg>

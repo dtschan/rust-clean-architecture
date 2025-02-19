@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+	<head><base href="/rust-clean-architecture/" />
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>reveal.js</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="pitc-revealjs-theme/css/theme/puzzle.css" id="theme">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css" id="highlight-theme">
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section data-markdown="slides.md"
+				     data-separator="^-\*-\*-"
+				         data-separator-vertical="^\*\*\*"
+				         data-separator-notes="^Note:">
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+
+                const dependencies = [
+                    { src: 'https://reveal-multiplex.glitch.me/socket.io/socket.io.js', async: true }
+                ];
+                const multiplexSecret = location.search.multiplex;
+                if (multiplexSecret) {
+                    dependencies.push({ src: "plugin/multiplex/master.js", async: true });
+                }
+                dependencies.push({ src: "plugin/multiplex/client.js", async: true });
+
+                // More info about initialization & config:
+                // - https://revealjs.com/initialization/
+                // - https://revealjs.com/config/
+                Reveal.initialize({
+                    hash: true,
+                    controls: false,
+                    controlsTutorial: false,
+                    progress: false,
+                    transition: "none",
+                    backgroundTransition: "none",
+                    // Learn about plugins: https://revealjs.com/plugins/
+                    plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+                    dependencies,
+                    multiplex: {
+                        // Example values. To generate your own, see the socket.io server instructions.
+                        secret: multiplexSecret || null, // Obtained from the socket.io server. Gives this (the master) control of the presentation
+                        id: '9005a888c7bf11c8', // Obtained from socket.io server
+                        url: 'https://reveal-multiplex.glitch.me/' // Location of socket.io server
+                    },
+                });
+            </script>
+	</body>
+</html>
