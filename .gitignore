@@ -1,0 +1,9 @@
+node_modules/
+.vscode/
+attachments/
+dist
+
+# copied from revealjs
+#css/
+#js/
+#plugin/
