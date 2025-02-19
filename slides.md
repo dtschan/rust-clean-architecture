@@ -22,7 +22,7 @@
 ## Rust Clean Architecture
 
 * My experiences
-* Basis for discussion
+* Basis for your own ideas and discussion
 * Not exhausting, there are always other approaches
 
 -*-*-
@@ -38,21 +38,11 @@
 
 ## Clean Architecture
 
-![lagoon-vpa-admission-controller dependencies](images/clean-architecture.svg)
+![Clean Architecture](images/clean-architecture.svg)
 <!-- .element style="margin-left: 2rem; margin-bottom: -1rem;" -->
 
 Circles are just exemplary
 <!-- .element style="font-size: smaller;" --->
-
--*-*-
-
-What do example projects do?
-
-Who implements Sync Wrapper for domain objects?
-
-https://github.com/rust-lang/keyword-generics-initiative
-
-Architectural Decision Records
 
 -*-*-
 
@@ -62,7 +52,7 @@ Architectural Decision Records
   * Inner circles must not depend on outer circles
 * Separation of concerns
   * A component should have only one reason to change
-* Use Case-Centric
+* Use case-centric
   * System is designed around business rules
 
 note:
@@ -70,39 +60,25 @@ note:
 
 -*-*-
 
-## Dependency Rule
+## Clean Architecture Implementation
+<!-- .element style="font-size: 1.5em;" --->
 
-To fullfil dependency rule:
-* Implement architectural boundaries
+* Implement components as Rust modules
+* Implement business rules and use cases as separate components
+* Access other components through interfaces
   * Traits and generics
   * Events and channels
   * ...
+
+-*-*-
+
+## Clean Architecture Implementation
+<!-- .element style="font-size: 1.5em;" --->
+
+* Use separate data models for each circle
 * Map data and errors at architectural boundaries
 * Use dependency injection to connect components
-
--*-*-
-
-## Separation of Concerns
-
-* Implement components as Rust modules
-* Access other components through interfaces
-* Use separate data models for each circle
-
--*-*-
-
-## Use Case-Centric
-
-* Implement business rules and use cases as separate components
-* No external dependencies
-
--*-*-
-
-## Architectural Boundaries
-
-* Implemented with modules or crates
-* Data Mapping
-    * Error Type Mapping & Erasure
-* Dependency Injection
+* Make conscious shortcuts
 
 -*-*-
 
@@ -133,12 +109,13 @@ To fullfil dependency rule:
 -*-*-
 
 ## Example 1 Module Dependencies
+<!-- .element style="margin-top: -1rem;" --->
 
-![lagoon-vpa-admission-controller dependencies](images/admission-controller-dependencies.svg)
-<!-- .element style="margin-left: -1rem; margin-right: -4rem; margin-top: rem" -->
+![vpa-admission-controller dependencies](images/admission-controller-dependencies.svg)
+<!-- .element style="margin-left: -1rem; margin-right: -4rem; margin-top: 0rem" -->
 
 Naming based on Hexagonal, aka Ports & Adapters architecture
-<!-- .element style="font-size: smaller;" --->
+<!-- .element style="font-size: smaller; margin-top: 0.5rem;" --->
 
 -*-*-
 
@@ -159,7 +136,7 @@ pub trait LocalMetricsPort {
 #[trait_variant::make(Recommender: Send)]
 #[allow(dead_code)]
 pub trait LocalRecommender {
-    async fn update_recommendations(&mut self) -> Result<(), Report>;
+    async fn update_recommendations(&self) -> Result<(), Report>;
     async fn get_pod_recommendation(
         &self,
         namespace: &str,
@@ -247,6 +224,7 @@ Implemented in Kubernetes adapter
 * `color-eyre` or `error-stack` help with all that
   * &rArr; Simple  error types
   * `Report` or `Report<T>` in method signatures
+* Rust will get its own `Report` type
 
 -*-*-
 
@@ -276,8 +254,32 @@ pub enum Error {
 
 ## ColorEyre Example Error Log
 
-```text
-```
+<pre style="background-color: #3F3F3F; color: lightgrey; white-space: pre-wrap; font-size: 0.4em;">
+Feb 19 11:29:34.305 <span style="color:white;background-color:#9e61b6;">│WRN│</span> <span style="font-weight:bold;">Failed to update recommendations </span><span style="color:#a6e22e;">target</span>=lagoon_vpa_admission_controller::adapter::admission_server <span style="color:#a6e22e;">span</span>=update_recommendations <span style="color:#a6e22e;">span-path</span>=run&gt;update_recommendations <span style="color:#a6e22e;">report</span>=`
+   0: Failed to update recommendations
+   1: Failed to retrieve LagoonVPA resources from the cluster
+   2: ApiError: deployments/scale.apps &quot;oops&quot; not found: NotFound (ErrorResponse { status: &quot;Failure&quot;, message: &quot;deployments/scale.apps \&quot;oops\&quot; not found&quot;, reason: &quot;NotFound&quot;, code: 404 })
+   3: deployments/scale.apps &quot;oops&quot; not found: NotFound
+
+Location:
+   src/adapter/kubernetes.rs:68
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ SPANTRACE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   0: lagoon_vpa_admission_controller::adapter::kubernetes::get_scale_subresource with vpa.spec=LagoonVPASpec { target_ref: CrossVersionObjectReference { api_version: Some(&quot;apps/v1&quot;), kind: &quot;Deployment&quot;, name: &quot;oops&quot; }, resource_policy: PodResourcePolicy { container_policies: [] } }
+      at src/adapter/kubernetes.rs:56
+   1: lagoon_vpa_admission_controller::adapter::kubernetes::get_vpa_specs
+      at src/adapter/kubernetes.rs:73
+   2: lagoon_vpa_admission_controller::domain::update_recommendations
+      at src/domain.rs:34
+   3: lagoon_vpa_admission_controller::adapter::admission_server::update_recommendations
+      at src/adapter/admission_server.rs:259
+   4: lagoon_vpa_admission_controller::adapter::admission_server::run
+      at src/adapter/admission_server.rs:270
+</pre>
+
+Log in logfmt format piped through log viewer [hl](https://github.com/pamburus/hl)
+<!-- .element style="font-size: smaller; margin-top: -1rem;" --->
 
 -*-*-
 
@@ -306,6 +308,8 @@ impl MetricsPort for PrometheusMetricsAdapter {
     ) -> Result<PodMetricsOverTime, Report> {
       // ...
 ```
+<!-- .element class="very-big" --->
+
 
 -*-*-
 
@@ -322,7 +326,7 @@ impl<R: Recommender + Clone + Sync + 'static> AdmissionServer<R> {
     }
 
     #[instrument(skip(self))]
-    async fn update_recommendations(&mut self) {
+    async fn update_recommendations(&self) {
         loop {
             if let Err(e) = self.recommender.update_recommendations().await {
                 warn!(report = ?e, "{}", e);
@@ -334,24 +338,10 @@ impl<R: Recommender + Clone + Sync + 'static> AdmissionServer<R> {
 
     // ...
 ```
--*-*-
+<!-- .element class="very-big" --->
 
-## Main/Configuration Component
-
-* Loads configuration
-* Sets up logging
-* Instantiates adapters, usually as owned objects
-* Instantiates core business component
-* Injects configuration into components
-* Injects adapters into core business component, usually by moving them
-
--*-*-
-
-## Enforcing Arch Boundaries
-
-* I.e. enforcing that dependencies point in right direction
-* Visibility modifiers
-* Compile-time fitness function
+Trait bounds needed by Warp server handler
+<!-- .element style="font-size: smaller;" --->
 
 -*-*-
 
@@ -359,108 +349,62 @@ impl<R: Recommender + Clone + Sync + 'static> AdmissionServer<R> {
 
 
 ```rust
-let vpa_adapter = KubernetesVpaAdapter::new(kubernetes_client);
+// ... cli, env var parsing and Prometheus client creation above
+
+let kubernetes_client: kube::Client =
+    kube::Client::try_default().await.wrap_err(Error::Config)?;
+
+let kubernetes_adapter = KubernetesAdapter::new(kubernetes_client);
 let metrics_adapter = PrometheusMetricsAdapter::new(prometheus_client);
-let recommender = LagoonRecommender::new(vpa_adapter, metrics_adapter);
-let mut admission_controller = AdmissionController::new(recommender);
+let recommender = LagoonRecommender::new(
+    kubernetes_adapter.clone(),
+    metrics_adapter,
+    kubernetes_adapter,
+);
+let admission_controller = AdmissionServer::new(recommender);
 
 admission_controller.run().await;
 ```
 <!-- .element class="very-big" --->
 
-* In this example in the adapter module
-* Allows all modules except model, error and ports to be private
+* Dependency injection by moving owned values
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: -0.5rem;" --->
+* Kubernetes adapter implements 2 ports
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0rem;" --->
+* Implemented in adapter module => private child modules
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0rem;" --->
 
 -*-*-
 
-## Dependeny Injection
+## Enforcing Arch Boundaries
 
-* What if an object needs to be injected multiple times?
-  * If struct is stateless just clone it
-  * If struct is stateful implement wrapper, e.g. using `Arc<Mutex<T>>`
-  * Or use message passing with channels
-
-Inner pattern
+* I.e. enforcing that dependencies point in right direction
+* Visibility modifiers prevent access between circles
+* Compile-time fitness function needed to prevent access between adapters
 
 -*-*-
 
-## Sync Wrapper
+## Async Strategies
 
-```rust
-use std::sync::Arc;
-use tokio::sync::Mutex;  // Tokio mutex must be used in async context
-
-#[derive(Clone)]
-struct SyncRecommender<R> {
-    inner: Arc<Mutex<R>>,
-}
-
-impl<R: Recommender> SyncRecommender<R> {
-    pub fn new(inner: R) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(inner)),
-        }
-    }
-}
-
-impl<R: Recommender> Recommender for SyncRecommender<R> {
-    async fn update_recommendations(&mut self) -> Result<(), Report> {
-        self.inner.lock().await.update_recommendations().await
-    }
-  
-```
-<!-- .element class="very-big" --->
-
--*-*-
-
-## Async
-
-Two strategies:
 * Make the whole project async
+  * Port functions need to be async
+  * Best performance
+  * Domain logic contains async code
+  * Recommended when most adapters are async
+
+-*-*-
+
+## Async Strategies
+
 * Only make some adapters async
-  * Inject runtime handle into adapters?
+  * Ports and domain logic are sync
+  * Outgoing adapters must run async code on runtime
+  * Overhead for sync => async
+  * Recommended when most adapters are sync
 
 -*-*-
 
-## Whole Project Async
-
-* Port functions need to be async:
-* Best performance
-* Domain logic contains async code
-* Recommended when majority of adapters are async
-
--*-*-
-
-## Whole Project Async
-
-```rust  
-#[trait_variant::make(MetricsAdapter: Send)]
-#[allow(dead_code)]
-pub trait LocalMetricsAdapter {
-    async fn get_container_metrics(
-        &self,
-        selector: &PodSelector,
-        range: u64,
-    ) -> Result<BTreeMap<String, ContainerMetricsOverTime>, Report>;
-}
-```
-<!-- .element class="very-big" --->
-
-Macros should become obsolete when AFIT matures
-
--*-*-
-
-## Only Some Adapters Async
-
-* Ports and domain logic are sync
-* Outgoing adapters need to run async code on runtime
-* Can be implemented with Future extension Trait
-* Overhead when switching between sync and async
-* Recommended when majority of adapters are sync
-
--*-*-
-
-## Future Extension Trait
+## Sync => Async: Extension Trait
 
 ```rust
 pub trait SyncFutureExt: Future + Sized {
@@ -493,7 +437,7 @@ impl<F: Future> SyncFutureExt for F {}
 
 -*-*-
 
-## Future Extension Trait
+## Sync => Async: Extension Trait
 
 ```rust
 use crate::adapter::SyncFutureExt;
@@ -509,6 +453,161 @@ let promql_result = self.client.query(&query).get().sync()?;
 
 ## Example 2: Dication Tool
 
+<!-- .slide: class="master-title" -->
+
+-*-*-
+
+## Example 2: Dication Tool
+
 * Turns spoken text into keypresses
 * Prototype for hardware solution
 * Architectural boundaries implemented with events and channels
+
+-*-*-
+
+## Example 2 Module Dependencies
+<!-- .element style="margin-top: -1rem;" --->
+
+<center>
+
+![dication-tool dependencies](images/dictation-tool-dependencies.svg)
+ <!-- .element style="margin-top: -1rem;" width="75%" -->
+
+</center> 
+
+-*-*-
+
+## Events
+
+```rust
+
+#[derive(Debug, Copy, Clone)]
+pub enum UserEvent {
+    RequestLanguageChange(Language),
+    RequestRecordingToggle,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum DictationEvent {
+    LanguageChange(Language),
+    Start,
+    Stop,
+}
+
+#[derive(Debug, Clone)]
+pub enum TextEvent {
+    IntermediateText(String),
+    FinalText(String),
+    Reset,
+}
+```
+
+-*-*-
+
+## Configuration Component
+
+```rust
+    let (dictation_sender, dictation_receiver) = broadcast::channel(100);
+    let (user_sender, user_receiver) = mpsc::channel(100);
+    let (speech_sender, speech_receiver) = mpsc::channel(100);
+    let (text_sender, text_receiver) = mpsc::channel(100);
+
+    let hotkey_listener = HotkeyListener::new(user_sender.clone());
+    let tray_icon = TrayIcon::new(dictation_sender.subscribe(), user_sender);
+    let mut typist = Typist::new(text_receiver);
+    let mut speech = Speech::new(dictation_receiver, speech_sender);
+    let mut dictation_orchestrator =
+        DictationOrchestrator::new(user_receiver, dictation_sender, speech_receiver, text_sender);
+```
+
+-*-*-
+
+## Configuration Component
+
+```rust
+    thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async move {
+                join!(speech.run(), typist.run(), dictation_orchestrator.run());
+            }
+        );
+    });
+
+    thread::spawn(move || {
+        hotkey_listener.run();
+    });
+
+    // Tray icon must run in main thread
+    tray_icon.run()?;
+```
+<!-- .element style="margin-top: 0rem;" --->
+
+-*-*-
+
+## Conclusion
+
+* Rust forces you to think about architecture more
+* A clean architecture helps with Rust ownership
+* Rust already has the tools for a clean architecture, no need for DI or data mapping frameworks
+* Coding AIs generate better results for clean projects and help with data mapping, etc.
+* There's more to Clean Architecture, e.g. testing
+
+-*-*-
+
+## Resources
+
+* [Introduction to Clean Architecture](https://bitloops.com/docs/bitloops-language/learning/software-architecture/clean-architecture)
+* [Get Your Hands Dirty on Clean Architecture by Tom Hombergs](https://reflectoring.io/book/)
+* [Clean Architecture by Robert C. Martin](https://www.pearson.ch/clean-architecture-a-craftsmans-guide-to-software-structure-and-design-9780134494166)
+
+-*-*-
+
+## Main/Configuration Component
+
+* Loads configuration
+* Sets up logging
+* Instantiates adapters, usually as owned objects
+* Instantiates core business component
+* Injects configuration into components
+* Injects adapters into core business component, usually by moving them
+
+-*-*-
+
+## Dependeny Injection
+
+* What if an object needs to be injected multiple times?
+  * If struct is stateless just clone it
+  * If struct is stateful implement wrapper, e.g. using `Arc<Mutex<T>>`
+  * Or use message passing with channels
+
+-*-*-
+
+## Sync Wrapper
+
+```rust
+use std::sync::Arc;
+use tokio::sync::Mutex;  // Tokio mutex must be used in async context
+
+#[derive(Clone)]
+struct SyncRecommender<R> {
+    inner: Arc<Mutex<R>>,
+}
+
+impl<R: Recommender> SyncRecommender<R> {
+    pub fn new(inner: R) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(inner)),
+        }
+    }
+}
+
+impl<R: Recommender> Recommender for SyncRecommender<R> {
+    async fn update_recommendations(&mut self) -> Result<(), Report> {
+        self.inner.lock().await.update_recommendations().await
+    }
+  
+```
+<!-- .element class="very-big" --->
