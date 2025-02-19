@@ -46,21 +46,6 @@ Circles are just exemplary
 
 -*-*-
 
-## Clean Architecture
-
-* 
-
--*-*-
-
-
-<div class="nr"></div>
-
-# Architecture
-
-<!-- .slide: class="master-title" -->
-
--*-*-
-
 What do example projects do?
 
 Who implements Sync Wrapper for domain objects?
@@ -134,6 +119,12 @@ To fullfil dependency rule:
 
 ## Example 1: Admission Controller
 
+<!-- .slide: class="master-title" -->
+
+-*-*-
+
+## Example 1: Admission Controller
+
 * Mutating Kubernetes Admission Controller
 * Initially implemented as VPA recommender
 * Calculates and applies requests, limits and Java Heap sizes based on Promtheus metrics
@@ -143,7 +134,7 @@ To fullfil dependency rule:
 
 ## Example 1 Module Dependencies
 
-![lagoon-vpa-admission-controller dependencies](images/lagoon-vpa-admission-controller.svg)
+![lagoon-vpa-admission-controller dependencies](images/admission-controller-dependencies.svg)
 <!-- .element style="margin-left: -1rem; margin-right: -4rem; margin-top: rem" -->
 
 Naming based on Hexagonal, aka Ports & Adapters architecture
@@ -151,22 +142,39 @@ Naming based on Hexagonal, aka Ports & Adapters architecture
 
 -*-*-
 
-## Domain Models
+## Port Examples
 
 ```rust
-#[derive(Debug, Default, Clone)]
-pub struct ContainerMetrics {
-    pub java_live_data_set_bytes: Option<f64>,
-    pub java_allocation_rate_bytes_second: Option<f64>,
-    pub jvm_committed_heap_bytes: Option<f64>,
-    pub memory_rss_bytes: Option<f64>,
-    pub memory_working_set_bytes: Option<f64>,
-    pub cpu_throttled_seconds_rate: Option<f64>,
-    pub cpu_usage_seconds_rate: Option<f64>,
-    pub cpu_limit_millicores: Option<f64>,
+#[trait_variant::make(MetricsPort: Send)]
+#[allow(dead_code)]
+pub trait LocalMetricsPort {
+    async fn get_pod_metrics(
+        &self,
+        namespace: &str,
+        pod_selector: &LabelSelector,
+        range: u64,
+    ) -> Result<PodMetricsOverTime, Report>;
+}
+
+#[trait_variant::make(Recommender: Send)]
+#[allow(dead_code)]
+pub trait LocalRecommender {
+    async fn update_recommendations(&mut self) -> Result<(), Report>;
+    async fn get_pod_recommendation(
+        &self,
+        namespace: &str,
+        labels: &BTreeMap<String, String>,
+    ) -> Result<Option<PodRecommendation>, Report>;
 }
 ```
-<!-- .element class="very-big" style="margin-top: 1.5rem;" --->
+<!-- .element class="very-big" --->
+ 
+Macros should become obsolete when AFIT matures
+<!-- .element style="font-size: smaller; margin-top: -1rem;" --->
+
+-*-*-
+
+## Domain Models
 
 ```rust
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -176,6 +184,12 @@ pub struct ContainerRecommendation {
     pub cpu_request_millicores: Option<u32>,
     pub cpu_limit_millicores: Option<u32>,
     pub jvm_max_heap_mib: Option<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContainerRecommendationConstraints {
+    pub min: Option<ContainerRecommendation>,
+    pub max: Option<ContainerRecommendation>,
 }
 ```
 
@@ -190,6 +204,30 @@ No invariants => public attributes
 * Directly access model
 * Implement `From`/`TryFrom`/`FromStr`
 * Implement `from_`/`to_` methods
+
+-*-*-
+
+## Data Mapping Example
+
+```rust
+impl TryFrom<ResourcePolicy> for ContainerRecommendation {
+    type Error = Report;
+
+    fn try_from(value: ResourcePolicy) -> Result<Self, Self::Error> {
+        Ok(Self {
+            memory_request_mib: value
+                .requests
+                .get("memory")
+                .map(|v| v.to_mib())
+                .transpose()?,
+            // ...
+        })
+    }
+}
+```
+
+Implemented in Kubernetes adapter
+<!-- .element style="font-size: smaller;" --->
 
 -*-*-
 
@@ -219,17 +257,17 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
 pub enum Error {
-    #[error("Failed to retrieve container metrics")]
-    ContainerMetricsRetrieval,
-
-    #[error("Failed to update recommendations")]
-    RecommendationsUpdate,
+    #[error("Failed to retrieve LagoonVPA resources from the cluster")]
+    VpaRetrieval,
 
     #[error("Failed to save pod recommendation")]
     PodRecommendationSave,
 
     #[error("Failed to load pod recommendation")]
     PodRecommendationLoad,
+
+    #[error("Failed to retrieve container metrics")]
+    ContainerMetricsRetrieval,
 
     // ...
 ```
@@ -241,7 +279,61 @@ pub enum Error {
 ```text
 ```
 
+-*-*-
 
+## Outgoing Adapter Example
+
+```rust
+#[derive(Clone)]
+pub struct PrometheusMetricsAdapter {
+    client: Client,
+}
+
+impl PrometheusMetricsAdapter {
+    pub fn new(client: Client) -> Self {
+        Self { client }
+    }
+    // ...
+}
+
+impl MetricsPort for PrometheusMetricsAdapter {
+    #[instrument(skip(self))]
+    async fn get_pod_metrics(
+        &self,
+        namespace: &str,
+        pod_selector: &LabelSelector,
+        range: u64,
+    ) -> Result<PodMetricsOverTime, Report> {
+      // ...
+```
+
+-*-*-
+
+## Incoming Adapter Example
+
+```rust
+pub struct AdmissionServer<R> {
+    recommender: R,
+}
+
+impl<R: Recommender + Clone + Sync + 'static> AdmissionServer<R> {
+    pub fn new(recommender: R) -> Self {
+        Self { recommender }
+    }
+
+    #[instrument(skip(self))]
+    async fn update_recommendations(&mut self) {
+        loop {
+            if let Err(e) = self.recommender.update_recommendations().await {
+                warn!(report = ?e, "{}", e);
+            }
+
+            sleep(Duration::from_secs(3600)).await;
+        }
+    }
+
+    // ...
+```
 -*-*-
 
 ## Main/Configuration Component
@@ -296,7 +388,7 @@ Inner pattern
 
 ```rust
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::Mutex;  // Tokio mutex must be used in async context
 
 #[derive(Clone)]
 struct SyncRecommender<R> {
