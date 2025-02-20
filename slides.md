@@ -75,7 +75,7 @@ note:
 ## Clean Architecture Implementation
 <!-- .element style="font-size: 1.5em;" --->
 
-* Use separate data models for each circle
+* Use separate data models for each circle and each use case
 * Map data and errors at architectural boundaries
 * Use dependency injection to connect components
 * Make conscious shortcuts
@@ -84,10 +84,10 @@ note:
 
 ## Conscious Shortcuts
 
-* Sharing models between use cases
-* Using domain model as input/output model
-* Skipping incoming ports
-* ...
+* Typical shortcuts:
+  * Sharing models between use cases
+  * Using domain model as input/output model
+  * Skipping incoming ports
 * Document with Architectural Decision Records
 * Reasoning might no longer be valid in the future
 
@@ -203,8 +203,10 @@ impl TryFrom<ResourcePolicy> for ContainerRecommendation {
 }
 ```
 
-Implemented in Kubernetes adapter
-<!-- .element style="font-size: smaller;" --->
+* Implemented in Kubernetes adapter
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: -0.5rem;" --->
+* ResourcePolicy is part of the controllers VPA custom resource
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0.5rem;" --->
 
 -*-*-
 
@@ -213,6 +215,8 @@ Implemented in Kubernetes adapter
 * Define error variants based on port operations
   * Only add data required for pattern matching
   * Capture other context with `tracing-error`
+    * Function arguments, source errors and traces
+    <!-- .element style="font-size: 0.85em; margin-left: -1rem;" --->
 * Wrap errors at boundaries
 
 -*-*-
@@ -370,9 +374,9 @@ admission_controller.run().await;
 * Dependency injection by moving owned values
 <!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: -0.5rem;" --->
 * Kubernetes adapter implements 2 ports
-<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0rem;" --->
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0.5rem;" --->
 * Implemented in adapter module => private child modules
-<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0rem;" --->
+<!-- .element style="font-size: smaller; margin-left: -3.3rem; margin-top: 0.5rem;" --->
 
 -*-*-
 
@@ -504,6 +508,40 @@ pub enum TextEvent {
 
 -*-*-
 
+## Adapter Example
+
+```rust
+pub struct Speech {
+    speech_recognizer: Box<msspeech::speech::SpeechRecognizer>,
+    dictation_receiver: broadcast::Receiver<DictationEvent>,
+    text_sender: mpsc::Sender<TextEvent>,
+}
+
+impl Speech {
+    pub async fn run(&mut self) {
+        while let Ok(event) = self.dictation_receiver.recv().await {
+            match event {
+                DictationEvent::LanguageChange(language) => {
+                    self.speech_recognizer = Self::new_speech_recognizer(
+                        language,
+                        self.text_sender.clone()
+                    );
+                }
+                DictationEvent::Start => {
+                    self.start().await;
+                }
+                DictationEvent::Stop => {
+                    self.stop().await;
+                }
+            }
+        }
+    }
+}
+```
+<!-- .element class="very-big" style="margin-top: 0rem;" --->
+
+-*-*-
+
 ## Configuration Component
 
 ```rust
@@ -517,7 +555,12 @@ pub enum TextEvent {
     let mut typist = Typist::new(text_receiver);
     let mut speech = Speech::new(dictation_receiver, speech_sender);
     let mut dictation_orchestrator =
-        DictationOrchestrator::new(user_receiver, dictation_sender, speech_receiver, text_sender);
+        DictationOrchestrator::new(
+            user_receiver,
+            dictation_sender,
+            speech_receiver,
+            text_sender
+        );
 ```
 
 -*-*-
@@ -551,7 +594,8 @@ pub enum TextEvent {
 
 * Rust forces you to think about architecture more
 * A clean architecture helps with Rust ownership
-* Rust already has the tools for a clean architecture, no need for DI or data mapping frameworks
+* Rust has all the tools for a clean architecture, no need for DI or data mapping frameworks
+* No/low overhead thanks to zero cost abstractions
 * Coding AIs generate better results for clean projects and help with data mapping, etc.
 * There's more to Clean Architecture, e.g. testing
 
@@ -565,6 +609,11 @@ pub enum TextEvent {
 
 -*-*-
 
+## Deleted Slides
+
+<!-- .slide: class="master-title" -->
+
+-*-*-
 ## Main/Configuration Component
 
 * Loads configuration
@@ -611,3 +660,66 @@ impl<R: Recommender> Recommender for SyncRecommender<R> {
   
 ```
 <!-- .element class="very-big" --->
+
+-*-*-
+
+## Incoming Adapter Example
+
+```rust
+    #[instrument(skip(self))]
+    pub async fn run(&self) {
+        let routes = warp::path("mutate")
+            .and(warp::body::json())
+            .and(with_recommender(self.recommender.clone()))
+            .and_then(mutate_handler);
+
+        let server = warp::serve(warp::post().and(routes))
+            .tls()
+            .cert_path("/certs/tls.crt")
+            .key_path("/certs/tls.key")
+            .run(([0, 0, 0, 0], 8443));
+
+        info!("Admission controller server running on 0.0.0.0:8443");
+        join!(self.update_recommendations(), server);
+    }
+}
+
+/// Wrap the recommender in a filter
+fn with_recommender(recommender: impl Recommender + Clone)
+  -> impl Filter<Extract = (impl Recommender,), Error = Infallible> + Clone {
+    warp::any().map(move || recommender.clone())
+}
+```
+<!-- .element class="very-big" --->
+
+-*-*-
+
+## Business Logik Example
+
+```rust
+impl ContainerMetricsOverTime {
+    pub fn compute_recommendations(&self) -> ContainerRecommendation {
+        let jvm_max_heap_bytes = tryit! {
+            let usage = self.max_over_time.java_live_data_set_bytes? +
+            30.0 * self.max_over_time.java_allocation_rate_bytes_second?;
+            Some(usage / 0.7)
+        };
+
+        // ...
+
+        ContainerRecommendation {
+            memory_request_mib: memory_request_bytes.map(
+                |x| (x / (1024.0 * 1024.0)).ceil() as u32),
+            memory_limit_mib: memory_limit_bytes.map(
+                |x| (x / (1024.0 * 1024.0)).ceil() as u32),
+            cpu_request_millicores: cpu_request_millicores.map(
+                |x| x as u32),
+            cpu_limit_millicores: cpu_limit_millicores.map(
+                |x| x as u32),
+            jvm_max_heap_mib: jvm_max_heap_bytes.map(
+                |x| (x / (1024.0 * 1024.0)).ceil() as u32),
+        }
+    }
+}
+```
+<!-- .element class="very-big" style="margin-top: 0rem;" --->
