@@ -4,7 +4,7 @@
 
 <br/>
 
-### Rust Meetup<br>20.1.2025
+### Rust Meetup Bern<br>20.1.2025
 ### Daniel Tschan
 <!-- .element style="margin-bottom: 12rem" --->
 
