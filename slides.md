@@ -270,9 +270,9 @@ Location:
 
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ SPANTRACE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-   0: lagoon_vpa_admission_controller::adapter::kubernetes::get_scale_subresource with vpa.spec=LagoonVPASpec { target_ref: CrossVersionObjectReference { api_version: Some(&quot;apps/v1&quot;), kind: &quot;Deployment&quot;, name: &quot;oops&quot; }, resource_policy: PodResourcePolicy { container_policies: [] } }
+   0: lagoon_vpa_admission_controller::adapter::kubernetes::get_scale_subresource
       at src/adapter/kubernetes.rs:56
-   1: lagoon_vpa_admission_controller::adapter::kubernetes::get_vpa_specs
+   1: lagoon_vpa_admission_controller::adapter::kubernetes::get_vpa_specs with namespace="vpa-test" vpa="oops" target_ref=CrossVersionObjectReference { api_version: Some(&quot;apps/v1&quot;), kind: &quot;Deployment&quot;, name: &quot;oops&quot; }
       at src/adapter/kubernetes.rs:73
    2: lagoon_vpa_admission_controller::domain::update_recommendations
       at src/domain.rs:34
